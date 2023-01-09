@@ -7,12 +7,46 @@
     tools:context=".ui.MainActivity">
 
     <TextView
+        android:id="@+id/tv_titulo"
+        style="@style/TextAppearance.MaterialComponents.Headline5"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!"
+        android:layout_margin="16dp"
+        android:text="@string/app_name"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <EditText
+        android:id="@+id/etNomeUsuario"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:ems="10"
+        android:hint="@string/nome_usuario"
+        android:maxLength="10"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_titulo" />
+
+    <Button
+        android:id="@+id/btnConfirmar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/confirmar"
+        app:layout_constraintEnd_toEndOf="@id/etNomeUsuario"
+        app:layout_constraintStart_toStartOf="@id/etNomeUsuario"
+        app:layout_constraintTop_toBottomOf="@id/etNomeUsuario" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_lista_repositories"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/btnConfirmar"
+        tools:listitem="@layout/repository_item" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

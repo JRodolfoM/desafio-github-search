@@ -1,71 +1,152 @@
 package br.com.jrmantovani.githubsearch.ui
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
 import br.com.jrmantovani.githubsearch.R
+import br.com.jrmantovani.githubsearch.data.GitHubService
+import br.com.jrmantovani.githubsearch.data.RetrofitService
 import br.com.jrmantovani.githubsearch.databinding.ActivityMainBinding
 import br.com.jrmantovani.githubsearch.domain.Repository
+import br.com.jrmantovani.githubsearch.ui.adapter.RepositoryAdapter
+import kotlinx.coroutines.*
+import retrofit2.Response
+
 
 class MainActivity : AppCompatActivity() {
+    private val TAG = "info_github"
     private val binding by lazy { ActivityMainBinding.inflate(layoutInflater) }
+    private var job: Job? = null
+    private var adapter: RepositoryAdapter? = null
+    private val gitHubAPI by lazy {
+        RetrofitService.getAPI(GitHubService::class.java)
+    }
+
+    private var alerta: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        setupView()
+
         showUserName()
-        setupRetrofit()
-        getAllReposByUserName()
+        setupListeners()
+
+
+
     }
 
-    // Metodo responsavel por realizar o setup da view e recuperar os Ids do layout
-    fun setupView() {
-        //@TODO 1 - Recuperar os Id's da tela para a Activity com o findViewById
+    private fun modalCarremento(){
+        val li = layoutInflater
+        val view: View = li.inflate(R.layout.modal_carregamento, null)
+        val builder = AlertDialog.Builder(this)
+        builder.setView(view)
+        builder.setCancelable(false)
+        alerta = builder.create()
+        alerta?.getWindow()?.setBackgroundDrawableResource(R.drawable.shape_modal)
+        alerta?.show()
+
+
     }
 
-    //metodo responsavel por configurar os listeners click da tela
     private fun setupListeners() {
-        //@TODO 2 - colocar a acao de click do botao confirmar
+
+        binding.btnConfirmar.setOnClickListener {
+            modalCarremento()
+            saveUserLocal()
+            getAllReposByUserName()
+        }
+
+
     }
 
 
-    // salvar o usuario preenchido no EditText utilizando uma SharedPreferences
+  
     private fun saveUserLocal() {
-        //@TODO 3 - Persistir o usuario preenchido na editText com a SharedPref no listener do botao salvar
+        val preferences = getSharedPreferences("user_preferences", MODE_PRIVATE)
+        val editor: SharedPreferences.Editor = preferences.edit()
+        editor.putString("nome", binding.etNomeUsuario.text.toString())
+        editor.commit()
+
     }
 
     private fun showUserName() {
-        //@TODO 4- depois de persistir o usuario exibir sempre as informacoes no EditText  se a sharedpref possuir algum valor, exibir no proprio editText o valor salvo
+        val preferences = getSharedPreferences("user_preferences", MODE_PRIVATE)
+        val user = preferences.getString("nome", "")
+        if (!user.equals("")) {
+            binding.etNomeUsuario.setText(user)
+            modalCarremento()
+            getAllReposByUserName()
+        }
     }
 
-    //Metodo responsavel por fazer a configuracao base do Retrofit
-    fun setupRetrofit() {
-        /*
-           @TODO 5 -  realizar a Configuracao base do retrofit
-           Documentacao oficial do retrofit - https://square.github.io/retrofit/
-           URL_BASE da API do  GitHub= https://api.github.com/
-           lembre-se de utilizar o GsonConverterFactory mostrado no curso
-        */
-    }
-
-    //Metodo responsavel por buscar todos os repositorios do usuario fornecido
     fun getAllReposByUserName() {
-        // TODO 6 - realizar a implementacao do callback do retrofit e chamar o metodo setupAdapter se retornar os dados com sucesso
+        job = CoroutineScope(Dispatchers.IO).launch {
+
+            var resposta: Response<List<Repository>>? = null
+
+            try {
+
+                resposta = gitHubAPI.getAllRepositoriesByUser(binding.etNomeUsuario.text.toString())
+
+            } catch (e: Exception) {
+                Log.i(TAG, "erro ${e.message}")
+                e.printStackTrace()
+
+            }
+
+            if (resposta != null) {
+                if (resposta.isSuccessful) {
+
+                    val listaDados = resposta.body()
+
+                    if (listaDados != null) {
+                        withContext(Dispatchers.Main) {
+                            setupAdapter(listaDados)
+                            alerta?.dismiss()
+                        }
+
+                    }
+
+
+                } else {
+                    withContext(Dispatchers.Main) {
+                        alerta?.dismiss()
+                        Toast.makeText(applicationContext, "Erro na busca", Toast.LENGTH_SHORT).show()
+                    }
+
+                    Log.i(TAG, "Erro codigo status: ${resposta.code()}")
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    alerta?.dismiss()
+                    Toast.makeText(applicationContext, "Erro na busca", Toast.LENGTH_SHORT).show()
+                }
+                Log.i(TAG, "Resposta nula")
+            }
+
+
+        }
+
     }
 
-    // Metodo responsavel por realizar a configuracao do adapter
     fun setupAdapter(list: List<Repository>) {
-        /*
-            @TODO 7 - Implementar a configuracao do Adapter , construir o adapter e instancia-lo
-            passando a listagem dos repositorios
-         */
+        adapter = RepositoryAdapter(list)
+        binding.rvListaRepositories.adapter = adapter
+        binding.rvListaRepositories.layoutManager =
+            LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+
+        adapter?.repoItemLister = {repository -> openBrowser(repository.htmlUrl)}
+        adapter?.btnShareLister = {repository -> shareRepositoryLink(repository.htmlUrl) }
+
     }
 
-
-    // Metodo responsavel por compartilhar o link do repositorio selecionado
-    // @Todo 11 - Colocar esse metodo no click do share item do adapter
     fun shareRepositoryLink(urlRepository: String) {
         val sendIntent: Intent = Intent().apply {
             action = Intent.ACTION_SEND
@@ -77,9 +158,6 @@ class MainActivity : AppCompatActivity() {
         startActivity(shareIntent)
     }
 
-    // Metodo responsavel por abrir o browser com o link informado do repositorio
-
-    // @Todo 12 - Colocar esse metodo no click item do adapter
     fun openBrowser(urlRepository: String) {
         startActivity(
             Intent(
@@ -89,4 +167,13 @@ class MainActivity : AppCompatActivity() {
         )
 
     }
+
+    override fun onStop() {
+        super.onStop()
+
+        job?.cancel()
+
+    }
+
+
 }
